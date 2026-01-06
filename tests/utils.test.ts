@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import {
   normalizePathPure,
   getParentPath,
@@ -136,6 +136,10 @@ describe("generateArchiveDestination", () => {
     vi.setSystemTime(new Date("2024-03-15T12:00:00Z"));
   });
 
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("returns base destination when no collision", () => {
     const existingPaths = new Set<string>();
     const result = generateArchiveDestination(
@@ -202,5 +206,16 @@ describe("generateArchiveDestination", () => {
       existingPaths
     );
     expect(result).toBe("Storage/Archive/MyProject");
+  });
+
+  it("throws error when too many collisions exist", () => {
+    // Create a Set-like object that always reports collision
+    const alwaysCollides = {
+      has: () => true,
+    } as Set<string>;
+
+    expect(() =>
+      generateArchiveDestination("Archive", "MyProject", alwaysCollides)
+    ).toThrow("Too many archive collisions");
   });
 });

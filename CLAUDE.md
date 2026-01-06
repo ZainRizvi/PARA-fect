@@ -33,6 +33,17 @@ archive-project/
 └── README.md
 ```
 
+## Plugin Files
+
+### manifest.json
+Standard Obsidian plugin manifest with id, name, version, and minAppVersion.
+
+### versions.json
+Maps plugin versions to minimum required Obsidian versions.
+- Format: `{ "plugin_version": "min_obsidian_version" }`
+- Used by Obsidian to warn users on older versions about compatibility
+- Update when releasing versions that require newer Obsidian APIs
+
 ## Key Conventions
 
 ### Code Style
@@ -76,3 +87,10 @@ archive-project/
 - **Auto-archive**: Archive inactive projects after X days
 - **Archive Notes**: Prompt for archive reason/notes
 - **Bulk Archive**: Archive multiple projects at once
+
+## Task Tracking (BD)
+
+Use 'bd' for task tracking. Run 'bd quickstart' to understand usage.
+
+- Always add detailed task descriptions to provide enough context for a junior dev fresh to the codebase to be able to get up to speed quickly
+- When working on a task, use detailed comments via `bd comment <id> "..."` to track progress, decisions made, and blockers encountered

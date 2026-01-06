@@ -3,9 +3,17 @@
  * These functions have no Obsidian dependencies and are fully testable.
  */
 
+/** Maximum collision attempts before throwing an error */
+const MAX_COLLISION_ATTEMPTS = 1000;
+
 /**
  * Normalize a path by trimming leading/trailing slashes and collapsing multiple slashes.
- * This is a pure version - in the plugin, use Obsidian's normalizePath instead.
+ *
+ * IMPORTANT: This must behave identically to Obsidian's normalizePath() for common cases.
+ * The plugin uses both: Obsidian's for API calls, this for pure/testable logic.
+ * If these diverge (e.g., unicode handling, special chars), path comparisons may fail.
+ *
+ * Current alignment verified: trim slashes, collapse multiples, backslash conversion.
  */
 export function normalizePathPure(path: string): string {
   return path
@@ -30,7 +38,9 @@ export function getParentPath(folderPath: string): string {
 
 /**
  * Check if a folder is a direct child of the projects path.
- * Both paths should be normalized before comparison.
+ *
+ * Note: Applies normalizePathPure internally. Callers using Obsidian's normalizePath
+ * should still work correctly as both normalizers align for standard path formats.
  */
 export function isTopLevelProjectFolder(
   folderPath: string,
@@ -97,7 +107,7 @@ export function generateArchiveDestination(
     }
     counter++;
     // Safety valve to prevent infinite loops
-    if (counter > 1000) {
+    if (counter > MAX_COLLISION_ATTEMPTS) {
       throw new Error("Too many archive collisions - please clean up your archive folder");
     }
   }
