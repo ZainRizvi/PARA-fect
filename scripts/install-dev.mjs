@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Development installation script for the Archive Project plugin.
+ * Development installation script for the PARA Manager plugin.
  *
  * Usage:
  *   npm run install:dev
@@ -83,7 +83,7 @@ async function main() {
   console.log(`Plugin installed to: ${pluginDir}`);
   console.log("\nNext steps in Obsidian:");
   console.log("1. Open Settings > Community plugins");
-  console.log("2. Enable 'Archive Project' plugin");
+  console.log("2. Enable 'PARA Manager' plugin");
   console.log("3. Reload Obsidian (Cmd+R / Ctrl+R) if needed");
 }
 

@@ -13,6 +13,12 @@ import {
 import { ArchiveConfirmModal, NameInputModal } from "./modals";
 import { ensureFolderExists, getExistingPaths, focusFolder } from "./folder-ops";
 
+declare global {
+  interface Window {
+    moment: typeof import("moment");
+  }
+}
+
 /** Maximum retries for rename operation on collision */
 const MAX_RENAME_RETRIES = 3;
 
@@ -183,7 +189,7 @@ export default class ParaManagerPlugin extends Plugin {
    */
   private formatProjectName(name: string, format: string): string {
     // window.moment is globally available in Obsidian - no import needed
-    const now = (window as any).moment();
+    const now = window.moment();
 
     // Replace {{name}} with escaped name (square brackets prevent Moment.js interpretation)
     // e.g., "fruit ball" contains 'a' (AM/PM) and 'll' (localized date) tokens

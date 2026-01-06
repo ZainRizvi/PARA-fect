@@ -275,7 +275,7 @@ export class ParaManagerSettingTab extends PluginSettingTab {
         if (isValid) {
           // Format sample name using Moment.js
           const sampleName = "My Project";
-          const now = (window as any).moment();
+          const now = window.moment();
           const escaped = format.replace(/\{\{name\}\}/g, `[${sampleName}]`);
           const result = now.format(escaped);
           previewEl.textContent = `Preview: ${result}`;
