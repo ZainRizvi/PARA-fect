@@ -1,6 +1,6 @@
-# Archive Project
+# PARA Manager
 
-An Obsidian plugin that adds a right-click context menu to archive top-level project folders in a PARA-style workflow.
+An Obsidian plugin for managing PARA folders (Projects, Areas, Resources, Archive). Create new items and archive completed ones with ease.
 
 ## Features
 
@@ -18,13 +18,13 @@ An Obsidian plugin that adds a right-click context menu to archive top-level pro
 ### Manual Installation
 
 1. Download `main.js` and `manifest.json` from the latest release
-2. Create folder: `<vault>/.obsidian/plugins/archive-project/`
+2. Create folder: `<vault>/.obsidian/plugins/para-manager/`
 3. Copy the files into that folder
 4. Enable the plugin in Obsidian Settings > Community plugins
 
 ## Configuration
 
-Open Settings > Archive Project to configure:
+Open Settings > PARA Manager to configure:
 
 | Setting | Default | Description |
 |---------|---------|-------------|
@@ -103,7 +103,7 @@ npm install
 
 3. In Obsidian:
    - Enable Community plugins (if not already)
-   - Enable "Archive Project" plugin
+   - Enable "PARA Manager" plugin
    - Reload (Cmd+R / Ctrl+R) after changes
 
 ### Install to Test Vault
@@ -116,7 +116,7 @@ npm run install:dev
 
 This copies `manifest.json`, `main.js`, and `styles.css` (if present) to:
 ```
-/Users/zain/test/PluginDev/TEST_Vault/.obsidian/plugins/archive-project/
+/Users/zain/test/PluginDev/TEST_Vault/.obsidian/plugins/para-manager/
 ```
 
 ## Manual Test Checklist

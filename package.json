@@ -1,7 +1,7 @@
 {
-  "name": "archive-project",
+  "name": "para-manager",
   "version": "1.0.0",
-  "description": "Obsidian plugin to archive top-level project folders in a PARA system",
+  "description": "Obsidian plugin for managing PARA folders: create and archive Projects, Areas, Resources",
   "main": "main.js",
   "type": "module",
   "scripts": {
@@ -18,7 +18,10 @@
     "plugin",
     "para",
     "archive",
-    "projects"
+    "projects",
+    "creation",
+    "areas",
+    "resources"
   ],
   "author": "Zain Ali",
   "license": "MIT",

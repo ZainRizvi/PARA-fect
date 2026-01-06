@@ -1,7 +1,7 @@
-import { App, Modal, Notice, Plugin, TAbstractFile, TFile, TFolder, normalizePath } from "obsidian";
+import { Notice, Plugin, TAbstractFile, TFile, TFolder, normalizePath } from "obsidian";
 import {
-  ArchiveProjectSettings,
-  ArchiveProjectSettingTab,
+  ParaManagerSettings,
+  ParaManagerSettingTab,
   DEFAULT_SETTINGS,
 } from "./settings";
 import {
@@ -10,89 +10,21 @@ import {
   isTopLevelProjectFolder,
   arePathsNested,
 } from "./utils";
+import { ArchiveConfirmModal } from "./modals";
+import { ensureFolderExists, getExistingPaths, focusFolder } from "./folder-ops";
 
 /** Maximum retries for rename operation on collision */
 const MAX_RENAME_RETRIES = 3;
 
-class ArchiveConfirmModal extends Modal {
-  private folderName: string;
-  private destPath: string;
-  private onConfirm: () => void;
-  private onCancel: () => void;
-  private confirmed = false;
-  private keydownHandler?: (e: KeyboardEvent) => void;
-
-  constructor(
-    app: App,
-    folderName: string,
-    destPath: string,
-    onConfirm: () => void,
-    onCancel: () => void
-  ) {
-    super(app);
-    this.folderName = folderName;
-    this.destPath = destPath;
-    this.onConfirm = onConfirm;
-    this.onCancel = onCancel;
-  }
-
-  onOpen() {
-    const { contentEl } = this;
-    contentEl.createEl("h2", { text: "Archive Project?" });
-    contentEl.createEl("p", { text: `Move "${this.folderName}" to:` });
-    contentEl.createEl("p", { text: this.destPath, cls: "archive-dest-path" });
-
-    const buttonContainer = contentEl.createDiv({ cls: "modal-button-container" });
-
-    const cancelBtn = buttonContainer.createEl("button", { text: "Cancel" });
-    cancelBtn.addEventListener("click", () => this.close());
-
-    const confirmBtn = buttonContainer.createEl("button", { text: "Archive", cls: "mod-cta" });
-    confirmBtn.addEventListener("click", () => {
-      this.confirmed = true;
-      this.onConfirm();
-      this.close();
-    });
-
-    // Focus confirm button for keyboard users
-    confirmBtn.focus();
-
-    // Handle Enter key to confirm
-    this.keydownHandler = (e: KeyboardEvent) => {
-      if (e.key === "Enter" && !e.isComposing) {
-        e.preventDefault();
-        this.confirmed = true;
-        this.onConfirm();
-        this.close();
-      } else if (e.key === "Escape") {
-        e.preventDefault();
-        this.close();
-      }
-    };
-    contentEl.addEventListener("keydown", this.keydownHandler);
-  }
-
-  onClose() {
-    const { contentEl } = this;
-    if (this.keydownHandler) {
-      contentEl.removeEventListener("keydown", this.keydownHandler);
-    }
-    contentEl.empty();
-    if (!this.confirmed) {
-      this.onCancel();
-    }
-  }
-}
-
-export default class ArchiveProjectPlugin extends Plugin {
-  settings: ArchiveProjectSettings = DEFAULT_SETTINGS;
+export default class ParaManagerPlugin extends Plugin {
+  settings: ParaManagerSettings = DEFAULT_SETTINGS;
   private archivingItems = new Set<string>();
 
   async onload(): Promise<void> {
     await this.loadSettings();
 
     // Add settings tab
-    this.addSettingTab(new ArchiveProjectSettingTab(this.app, this));
+    this.addSettingTab(new ParaManagerSettingTab(this.app, this));
 
     // Register command palette command
     this.addCommand({
@@ -155,7 +87,7 @@ export default class ArchiveProjectPlugin extends Plugin {
 
     // Check if archive path matches any source folder
     if (sourceFolders.includes(archivePath)) {
-      new Notice("Archive Project: Invalid settings detected (archive matches source folder), resetting to defaults");
+      new Notice("PARA Manager: Invalid settings detected (archive matches source folder), resetting to defaults");
       this.settings.projectsPath = DEFAULT_SETTINGS.projectsPath;
       this.settings.areasPath = DEFAULT_SETTINGS.areasPath;
       this.settings.resourcesPath = DEFAULT_SETTINGS.resourcesPath;
@@ -167,7 +99,7 @@ export default class ArchiveProjectPlugin extends Plugin {
     // Check if source folders match each other
     const uniqueFolders = new Set(sourceFolders);
     if (uniqueFolders.size !== sourceFolders.length) {
-      new Notice("Archive Project: Invalid settings detected (source folders match), resetting to defaults");
+      new Notice("PARA Manager: Invalid settings detected (source folders match), resetting to defaults");
       this.settings.projectsPath = DEFAULT_SETTINGS.projectsPath;
       this.settings.areasPath = DEFAULT_SETTINGS.areasPath;
       this.settings.resourcesPath = DEFAULT_SETTINGS.resourcesPath;
@@ -184,7 +116,7 @@ export default class ArchiveProjectPlugin extends Plugin {
     ];
     const nestedError = arePathsNested(allPaths);
     if (nestedError) {
-      new Notice(`Archive Project: Invalid settings detected (${nestedError}), resetting to defaults`);
+      new Notice(`PARA Manager: Invalid settings detected (${nestedError}), resetting to defaults`);
       this.settings.projectsPath = DEFAULT_SETTINGS.projectsPath;
       this.settings.areasPath = DEFAULT_SETTINGS.areasPath;
       this.settings.resourcesPath = DEFAULT_SETTINGS.resourcesPath;
@@ -266,17 +198,17 @@ export default class ArchiveProjectPlugin extends Plugin {
       const sourceFolderName = sourceFolder ? getItemName(sourceFolder) : "";
 
       // Ensure archive folder exists
-      await this.ensureFolderExists(archivePath);
+      await ensureFolderExists(this.app, archivePath);
 
       // Create subfolder within archive that matches source folder name
       // e.g., Archive/Projects, Archive/Areas, Archive/Resources, or Archive/My Projects
       const archiveSubfolder = sourceFolderName
         ? normalizePath(`${archivePath}/${sourceFolderName}`)
         : archivePath;
-      await this.ensureFolderExists(archiveSubfolder);
+      await ensureFolderExists(this.app, archiveSubfolder);
 
       // Get all existing folders in the subfolder to check for collisions
-      const existingPaths = this.getExistingArchivePaths(archiveSubfolder);
+      const existingPaths = getExistingPaths(this.app, archiveSubfolder);
 
       // Generate unique destination path within the subfolder
       const destPath = generateArchiveDestination(
@@ -305,7 +237,7 @@ export default class ArchiveProjectPlugin extends Plugin {
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown error";
       new Notice(`Failed to archive "${itemName}": ${message}`);
-      console.error("Archive Project: Failed to archive item", error);
+      console.error("PARA Manager: Failed to archive item", error);
     } finally {
       this.archivingItems.delete(item.path);
     }
@@ -346,7 +278,7 @@ export default class ArchiveProjectPlugin extends Plugin {
           throw renameError; // Final attempt failed, propagate error
         }
         // Assume collision due to case-insensitive filesystem - refresh and retry
-        const refreshedPaths = this.getExistingArchivePaths(archiveSubfolder);
+        const refreshedPaths = getExistingPaths(this.app, archiveSubfolder);
         // Add the failed path to force a new name (handles case-insensitive match)
         refreshedPaths.add(destPath);
         destPath = generateArchiveDestination(archiveSubfolder, itemName, refreshedPaths);
@@ -362,101 +294,7 @@ export default class ArchiveProjectPlugin extends Plugin {
 
     // Focus back on source folder if enabled
     if (this.settings.focusAfterArchive && sourceFolder) {
-      await this.focusSourceFolder(sourceFolder);
-    }
-  }
-
-  /**
-   * Ensure a folder exists, creating it and any parent directories if necessary.
-   * Handles deeply nested archive paths by recursively creating parents.
-   * @throws If an intermediate path exists as a file rather than a folder.
-   */
-  private async ensureFolderExists(folderPath: string): Promise<void> {
-    const normalizedPath = normalizePath(folderPath);
-    const folder = this.app.vault.getAbstractFileByPath(normalizedPath);
-
-    if (folder) {
-      // Path already exists - verify it's a folder, not a file
-      if (!(folder instanceof TFolder)) {
-        throw new Error(`"${normalizedPath}" exists but is not a folder`);
-      }
-      return;
-    }
-
-    // Split path into segments and create each parent if needed
-    const segments = normalizedPath.split("/").filter(Boolean);
-
-    // Build each parent path and ensure it exists
-    for (let i = 1; i <= segments.length; i++) {
-      const parentPath = segments.slice(0, i).join("/");
-      const parentFile = this.app.vault.getAbstractFileByPath(parentPath);
-
-      if (!parentFile) {
-        // Parent doesn't exist - create it
-        await this.app.vault.createFolder(parentPath);
-      } else if (!(parentFile instanceof TFolder)) {
-        // Parent exists but is a file - error
-        throw new Error(
-          `Cannot create folder "${normalizedPath}": intermediate path "${parentPath}" exists but is not a folder`
-        );
-      }
-      // If parent exists and is a folder, continue to next segment
-    }
-  }
-
-  /**
-   * Get all existing paths in the archive folder.
-   */
-  private getExistingArchivePaths(archivePath: string): Set<string> {
-    const paths = new Set<string>();
-    const archiveFolder = this.app.vault.getAbstractFileByPath(archivePath);
-
-    if (archiveFolder instanceof TFolder) {
-      for (const child of archiveFolder.children) {
-        paths.add(normalizePath(child.path));
-      }
-    }
-
-    return paths;
-  }
-
-  /**
-   * Focus the file explorer on a source folder (Projects, Areas, or Resources).
-   * Best-effort: logs errors but doesn't notify user since archive succeeded.
-   *
-   * @param sourcePath - The path to the source folder to focus on
-   *
-   * WARNING: Uses undocumented internal Obsidian API (revealInFolder).
-   * Tested on Obsidian 1.7.x. May break in future versions.
-   * If it breaks, the archive still succeeds - only the focus feature fails.
-   */
-  private async focusSourceFolder(sourcePath: string): Promise<void> {
-    const normalizedPath = normalizePath(sourcePath);
-    const sourceFolder = this.app.vault.getAbstractFileByPath(normalizedPath);
-
-    if (!sourceFolder) {
-      return;
-    }
-
-    try {
-      // Get the file explorer leaf
-      const fileExplorer = this.app.workspace.getLeavesOfType("file-explorer")[0];
-      if (!fileExplorer) {
-        return;
-      }
-
-      // INTERNAL API: revealInFolder is not in Obsidian's public type definitions
-      // This is a best-effort feature - archive succeeds even if this fails
-      const fileExplorerView = fileExplorer.view as {
-        revealInFolder?: (file: TAbstractFile) => void;
-      };
-
-      if (typeof fileExplorerView.revealInFolder === "function") {
-        fileExplorerView.revealInFolder(sourceFolder as TAbstractFile);
-      }
-    } catch (error) {
-      // Best-effort: log for debugging but don't bother user (archive succeeded)
-      console.debug("Archive Project: Could not focus source folder", error);
+      await focusFolder(this.app, sourceFolder);
     }
   }
 }
