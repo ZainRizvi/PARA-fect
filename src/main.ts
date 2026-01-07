@@ -463,20 +463,27 @@ export default class ParaManagerPlugin extends Plugin {
     this.sortingPatchUninstaller = around(view.constructor.prototype, {
       getSortedFolderItems(original) {
         return function (this: any, folder: TFolder) {
-          console.log("aPARAtus: getSortedFolderItems called for", folder.path);
-
           // Only intercept for Projects folder
           if (folder.path !== projectsPath) {
+            // Debug: log when we check the Projects folder path
+            if (folder.path.includes("Projects") || folder.path.includes("1 -")) {
+              console.log("aPARAtus: Checking folder:", JSON.stringify(folder.path), "vs configured:", JSON.stringify(projectsPath), "match:", folder.path === projectsPath);
+            }
             return original.call(this, folder);
           }
 
-          console.log("aPARAtus: Intercepting sort for Projects folder, order:", plugin.settings.projectSortOrder);
+          console.log("aPARAtus: Sorting Projects folder, order:", plugin.settings.projectSortOrder);
 
           try {
             const items = original.call(this, folder);
-            console.log("aPARAtus: Original items:", items.map((i: TAbstractFile) => i.name));
+            // Debug: inspect what items actually are
+            console.log("aPARAtus: Items type:", typeof items, Array.isArray(items));
+            if (items.length > 0) {
+              console.log("aPARAtus: First item:", items[0]);
+              console.log("aPARAtus: First item keys:", Object.keys(items[0]));
+              console.log("aPARAtus: First item.file:", items[0].file);
+            }
             const sorted = plugin.sortProjectItems(items);
-            console.log("aPARAtus: Sorted items:", sorted.map((i: TAbstractFile) => i.name));
             return sorted;
           } catch (e) {
             console.error("aPARAtus: Sorting failed, using default", e);
@@ -491,23 +498,35 @@ export default class ParaManagerPlugin extends Plugin {
    * Sort project items according to the configured sort order.
    * Applies the sort order setting to reorder folder items.
    *
-   * @param items - The items to sort
-   * @returns The sorted items
+   * Note: Items are file explorer UI wrappers, not TAbstractFile directly.
+   * The actual file is in the .file property (undocumented Obsidian internal).
+   *
+   * @param items - The wrapper items to sort
+   * @returns The sorted wrapper items
    */
-  private sortProjectItems(items: TAbstractFile[]): TAbstractFile[] {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private sortProjectItems(items: any[]): any[] {
     const sorted = [...items];
 
     if (this.settings.projectSortOrder === "lastModified") {
       sorted.sort((a, b) => {
+        // Items are wrappers - actual file is in .file property
+        const fileA = a.file as TAbstractFile;
+        const fileB = b.file as TAbstractFile;
         // Use safe access - stat may be undefined for some files
         const mtimeA =
-          a instanceof TFolder ? getFolderLastModifiedTime(a) : ((a as TFile).stat?.mtime ?? 0);
+          fileA instanceof TFolder ? getFolderLastModifiedTime(fileA) : ((fileA as TFile).stat?.mtime ?? 0);
         const mtimeB =
-          b instanceof TFolder ? getFolderLastModifiedTime(b) : ((b as TFile).stat?.mtime ?? 0);
+          fileB instanceof TFolder ? getFolderLastModifiedTime(fileB) : ((fileB as TFile).stat?.mtime ?? 0);
         return compareByLastModified({ mtime: mtimeA }, { mtime: mtimeB });
       });
     } else if (this.settings.projectSortOrder === "datePrefix") {
-      sorted.sort((a, b) => compareByDatePrefix({ name: a.name }, { name: b.name }));
+      sorted.sort((a, b) => {
+        // Items are wrappers - actual file is in .file property
+        const fileA = a.file as TAbstractFile;
+        const fileB = b.file as TAbstractFile;
+        return compareByDatePrefix({ name: fileA.name }, { name: fileB.name });
+      });
     }
 
     return sorted;
