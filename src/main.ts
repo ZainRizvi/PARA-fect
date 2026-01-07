@@ -516,7 +516,6 @@ export default class ParaManagerPlugin extends Plugin {
    * @param items - The wrapper items to sort
    * @returns The sorted wrapper items
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private sortProjectItems(items: any[]): any[] {
     const sorted = [...items];
 

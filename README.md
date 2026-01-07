@@ -252,6 +252,15 @@ After installing, verify these behaviors in Obsidian:
 - [ ] Go to Settings > Hotkeys and search for "Create Project"
 - [ ] Assign a custom hotkey and verify it works in command palette
 
+## Attribution
+
+This plugin uses code patterns and techniques from the following open-source project:
+
+- **obsidian-custom-sort** ([GitHub](https://github.com/SebastianMC/obsidian-custom-sort)) — The monkey patching implementation for custom folder sorting was informed by this plugin's approach, specifically the patterns for:
+  - Waiting for `onLayoutReady` before patching (ensuring file explorer availability)
+  - Re-installing patches when settings change
+  - Verifying undocumented API methods exist before using them
+
 ## License
 
 MIT

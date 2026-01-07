@@ -141,7 +141,7 @@ const releaseArgs = ['release', 'create', newVersion, `--title=v${newVersion}`, 
 if (isBeta) {
   releaseArgs.push('--prerelease');
 }
-releaseArgs.push('main.js', 'manifest.json');
+releaseArgs.push('main.js', 'manifest.json', 'styles.css');
 run('gh', releaseArgs);
 
 console.log(`\n✓ Released v${newVersion}${isBeta ? ' (pre-release)' : ''}`);
