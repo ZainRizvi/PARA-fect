@@ -530,8 +530,9 @@ export default class ParaManagerPlugin extends Plugin {
         const fileB = b.file as TAbstractFile;
 
         // Parse dates using moment with the user's configured format
-        const dateA = window.moment(fileA.name, dateFormat, true);
-        const dateB = window.moment(fileB.name, dateFormat, true);
+        // Not using strict mode since folder name has extra text after the date
+        const dateA = window.moment(fileA.name, dateFormat);
+        const dateB = window.moment(fileB.name, dateFormat);
 
         // Valid dates sort by date (newer first), invalid dates go to end
         const validA = dateA.isValid();
