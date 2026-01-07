@@ -37,6 +37,7 @@ export default class ParaManagerPlugin extends Plugin {
   settings: ParaManagerSettings = DEFAULT_SETTINGS;
   private archivingItems = new Set<string>();
   private sortingPatchUninstaller: (() => void) | null = null;
+  private sortDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
   async onload(): Promise<void> {
     await this.loadSettings();
@@ -55,16 +56,24 @@ export default class ParaManagerPlugin extends Plugin {
     );
 
     // Trigger re-sort when files are modified (for "lastModified" sort mode)
+    // Debounced to avoid excessive re-sorts during rapid file changes
     this.registerEvent(
       this.app.vault.on('modify', (file) => {
         if (this.settings.projectSortOrder === 'lastModified') {
           // Check if modified file is inside the Projects folder
           const projectsPath = normalizePath(this.settings.projectsPath);
           if (file.path.startsWith(projectsPath + '/')) {
-            const fileExplorer = this.app.workspace.getLeavesOfType('file-explorer')[0];
-            if (fileExplorer) {
-              (fileExplorer.view as FileExplorerView).requestSort?.();
+            // Debounce: wait 1 second after last change before re-sorting
+            if (this.sortDebounceTimer) {
+              clearTimeout(this.sortDebounceTimer);
             }
+            this.sortDebounceTimer = setTimeout(() => {
+              const fileExplorer = this.app.workspace.getLeavesOfType('file-explorer')[0];
+              if (fileExplorer) {
+                (fileExplorer.view as FileExplorerView).requestSort?.();
+              }
+              this.sortDebounceTimer = null;
+            }, 1000);
           }
         }
       })
@@ -167,6 +176,9 @@ export default class ParaManagerPlugin extends Plugin {
   onunload(): void {
     this.sortingPatchUninstaller?.();
     this.archivingItems.clear();
+    if (this.sortDebounceTimer) {
+      clearTimeout(this.sortDebounceTimer);
+    }
   }
 
   async loadSettings(): Promise<void> {
