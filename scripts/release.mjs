@@ -12,7 +12,9 @@
  *   0.1.5 + patch       → 0.1.6
  *   0.1.5 + patch beta  → 0.1.6-beta.1
  *   0.1.6-beta.1 + beta → 0.1.6-beta.2
- *   0.1.6-beta.2 + patch → 0.1.6
+ *   0.1.6-beta.2 + patch → 0.1.6 (promote to stable)
+ *   0.1.6-beta.2 + minor → 0.2.0 (bump minor)
+ *   0.1.6-beta.2 + major → 1.0.0 (bump major)
  */
 
 import { readFileSync, writeFileSync } from 'fs';
@@ -87,21 +89,21 @@ if (isBeta) {
   const BUMP_TYPE = bumpArg || 'patch';
   let { major, minor, patch } = current;
 
-  if (isCurrentBeta) {
-    // Releasing from beta → use base version (no bump needed)
-    newVersion = `${major}.${minor}.${patch}`;
-  } else {
-    switch (BUMP_TYPE) {
-      case 'major':
-        newVersion = `${major + 1}.0.0`;
-        break;
-      case 'minor':
-        newVersion = `${major}.${minor + 1}.0`;
-        break;
-      case 'patch':
+  switch (BUMP_TYPE) {
+    case 'major':
+      newVersion = `${major + 1}.0.0`;
+      break;
+    case 'minor':
+      newVersion = `${major}.${minor + 1}.0`;
+      break;
+    case 'patch':
+      if (isCurrentBeta) {
+        // Promoting from beta → use base version
+        newVersion = `${major}.${minor}.${patch}`;
+      } else {
         newVersion = `${major}.${minor}.${patch + 1}`;
-        break;
-    }
+      }
+      break;
   }
 }
 
