@@ -15,7 +15,7 @@ import {
 } from "./utils";
 import { ArchiveConfirmModal, NameInputModal } from "./modals";
 import { ensureFolderExists, getExistingPaths, focusFolder, getFolderLastModifiedTime } from "./folder-ops";
-import type { FileExplorerView } from "./obsidian-internals";
+import type { FileExplorerView, FileExplorerItem } from "./obsidian-internals";
 
 declare global {
   interface Window {
@@ -239,6 +239,8 @@ export default class ParaManagerPlugin extends Plugin {
    */
   private isTemplaterAvailable(): boolean {
     try {
+      // INTERNAL API: app.plugins is not in Obsidian's public type definitions
+      // This is necessary to detect the Templater plugin
       return !!(this.app as any).plugins?.plugins?.["templater-obsidian"];
     } catch {
       return false;
@@ -251,6 +253,8 @@ export default class ParaManagerPlugin extends Plugin {
    */
   private isCoreTemplatesAvailable(): boolean {
     try {
+      // INTERNAL API: app.internalPlugins is not in Obsidian's public type definitions
+      // This is necessary to detect the core Templates plugin
       return !!(this.app as any).internalPlugins?.plugins?.["templates"];
     } catch {
       return false;
@@ -287,6 +291,8 @@ export default class ParaManagerPlugin extends Plugin {
     try {
       // Prefer Templater if available
       if (this.isTemplaterAvailable()) {
+        // INTERNAL API: app.plugins is not in Obsidian's public type definitions
+        // We've already verified Templater is available via isTemplaterAvailable()
         const templater = ((this.app as any).plugins?.plugins?.["templater-obsidian"] as TemplaterPlugin)?.templater;
         if (templater) {
           const result = await templater.parse_template({ template_file: templateFile, target_file: file });
@@ -516,7 +522,7 @@ export default class ParaManagerPlugin extends Plugin {
    * @param items - The wrapper items to sort
    * @returns The sorted wrapper items
    */
-  private sortProjectItems(items: any[]): any[] {
+  private sortProjectItems(items: FileExplorerItem[]): FileExplorerItem[] {
     const sorted = [...items];
 
     if (this.settings.projectSortOrder === "lastModified") {

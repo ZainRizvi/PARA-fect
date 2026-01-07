@@ -3,7 +3,7 @@
  * These functions interact with the Obsidian vault to manage folders.
  */
 
-import { App, TAbstractFile, TFolder, normalizePath } from "obsidian";
+import { App, TAbstractFile, TFile, TFolder, normalizePath } from "obsidian";
 
 /**
  * Ensure a folder exists, creating it and any parent directories if necessary.
@@ -122,8 +122,8 @@ export function getFolderLastModifiedTime(folder: TFolder): number {
       if (child instanceof TFolder) {
         traverse(child);
       } else {
-        // TFile has mtime property
-        const file = child as any;
+        // child must be a TFile (already verified by the if check above)
+        const file = child as TFile;
         if (typeof file.stat?.mtime === "number") {
           maxMtime = Math.max(maxMtime, file.stat.mtime);
         }

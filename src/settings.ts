@@ -1,17 +1,11 @@
-import { AbstractInputSuggest, App, Notice, PluginSettingTab, Setting, TextComponent, TFolder, normalizePath } from "obsidian";
+import { AbstractInputSuggest, App, Notice, PluginSettingTab, Setting, TextComponent, TFile, TFolder, normalizePath } from "obsidian";
 import type ParaManagerPlugin from "./main";
 import { validateParaFolderPath, type ParaFolderField } from "./utils";
+import { ensureFolderExists } from "./folder-ops";
+import type { FileExplorerView } from "./obsidian-internals";
 
-/**
- * Ensure a folder exists in the vault, creating it if necessary.
- */
-async function ensureFolderExistsVault(app: App, folderPath: string): Promise<void> {
-  const normalized = normalizePath(folderPath);
-  const existing = app.vault.getAbstractFileByPath(normalized);
-  if (!existing) {
-    await app.vault.createFolder(normalized);
-  }
-}
+/** Default folder for storing templates */
+const DEFAULT_TEMPLATES_FOLDER = "Templates";
 
 /**
  * Generate a default template for a PARA item type.
@@ -61,6 +55,44 @@ A resource is a topic or tool you want to reference in the future.
   };
 
   return descriptions[itemType] || `# {{name}}\n`;
+}
+
+/**
+ * Handle the "Generate Default" button click for template settings.
+ * Creates a default template file, updates the corresponding setting, and refreshes the UI.
+ *
+ * @param plugin - The ParaManagerPlugin instance
+ * @param itemType - The PARA item type (Project, Area, or Resource)
+ * @param settingsKey - The settings key to update (projectTemplatePath, areaTemplatePath, or resourceTemplatePath)
+ * @param refreshDisplay - Function to refresh the settings display UI
+ */
+async function generateDefaultTemplateHandler(
+  plugin: ParaManagerPlugin,
+  itemType: "Project" | "Area" | "Resource",
+  settingsKey: "projectTemplatePath" | "areaTemplatePath" | "resourceTemplatePath",
+  refreshDisplay: () => void
+): Promise<void> {
+  const defaultContent = generateDefaultTemplate(itemType);
+  await ensureFolderExists(plugin.app, DEFAULT_TEMPLATES_FOLDER);
+  const templatePath = `${DEFAULT_TEMPLATES_FOLDER}/${itemType}.md`;
+
+  // Check if template already exists
+  const existing = plugin.app.vault.getAbstractFileByPath(templatePath);
+  if (existing) {
+    new Notice("Template already exists at " + templatePath);
+    return;
+  }
+
+  try {
+    await plugin.app.vault.create(templatePath, defaultContent);
+    plugin.settings[settingsKey] = templatePath;
+    await plugin.saveSettings();
+    refreshDisplay(); // Refresh UI
+    new Notice(`Created ${itemType.toLowerCase()} template at ${templatePath}`);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    new Notice("Failed to create template: " + message);
+  }
 }
 
 /**
@@ -148,15 +180,15 @@ function setupTemplatePathInput(
   const inputEl = text.inputEl;
 
   // Create a custom suggest for markdown files
-  class FileInputSuggest extends AbstractInputSuggest<any> {
+  class FileInputSuggest extends AbstractInputSuggest<TFile> {
     constructor(app: App, inputEl: HTMLInputElement) {
       super(app, inputEl);
     }
 
-    getSuggestions(inputStr: string): any[] {
+    getSuggestions(inputStr: string): TFile[] {
       const files = plugin.app.vault.getAllLoadedFiles()
-        .filter((f): f is any => {
-          return typeof f.name === "string" && f.name.endsWith(".md");
+        .filter((f): f is TFile => {
+          return f instanceof TFile && f.name.endsWith(".md");
         });
 
       if (!inputStr) return files.slice(0, 50); // Limit suggestions
@@ -167,11 +199,11 @@ function setupTemplatePathInput(
       ).slice(0, 20);
     }
 
-    renderSuggestion(file: any, el: HTMLElement): void {
+    renderSuggestion(file: TFile, el: HTMLElement): void {
       el.setText(file.path);
     }
 
-    selectSuggestion(file: any): void {
+    selectSuggestion(file: TFile): void {
       this.setValue(file.path);
       this.close();
     }
@@ -449,7 +481,7 @@ export class ParaManagerSettingTab extends PluginSettingTab {
             this.plugin.installSortingPatch();
             const fileExplorer = this.plugin.app.workspace.getLeavesOfType("file-explorer")[0];
             if (fileExplorer) {
-              (fileExplorer.view as any).requestSort?.();
+              (fileExplorer.view as FileExplorerView).requestSort?.();
             }
           })
       );
@@ -479,28 +511,12 @@ export class ParaManagerSettingTab extends PluginSettingTab {
       button
         .setButtonText("Generate Default")
         .onClick(async () => {
-          const defaultContent = generateDefaultTemplate("Project");
-          const templatesFolder = "Templates";
-          await ensureFolderExistsVault(this.plugin.app, templatesFolder);
-          const templatePath = `${templatesFolder}/Project.md`;
-
-          // Check if template already exists
-          const existing = this.plugin.app.vault.getAbstractFileByPath(templatePath);
-          if (existing) {
-            new Notice("Template already exists at " + templatePath);
-            return;
-          }
-
-          try {
-            await this.plugin.app.vault.create(templatePath, defaultContent);
-            this.plugin.settings.projectTemplatePath = templatePath;
-            await this.plugin.saveSettings();
-            this.display(); // Refresh UI
-            new Notice("Created project template at " + templatePath);
-          } catch (error) {
-            const message = error instanceof Error ? error.message : "Unknown error";
-            new Notice("Failed to create template: " + message);
-          }
+          await generateDefaultTemplateHandler(
+            this.plugin,
+            "Project",
+            "projectTemplatePath",
+            () => this.display()
+          );
         })
     );
 
@@ -526,28 +542,12 @@ export class ParaManagerSettingTab extends PluginSettingTab {
       button
         .setButtonText("Generate Default")
         .onClick(async () => {
-          const defaultContent = generateDefaultTemplate("Area");
-          const templatesFolder = "Templates";
-          await ensureFolderExistsVault(this.plugin.app, templatesFolder);
-          const templatePath = `${templatesFolder}/Area.md`;
-
-          // Check if template already exists
-          const existing = this.plugin.app.vault.getAbstractFileByPath(templatePath);
-          if (existing) {
-            new Notice("Template already exists at " + templatePath);
-            return;
-          }
-
-          try {
-            await this.plugin.app.vault.create(templatePath, defaultContent);
-            this.plugin.settings.areaTemplatePath = templatePath;
-            await this.plugin.saveSettings();
-            this.display(); // Refresh UI
-            new Notice("Created area template at " + templatePath);
-          } catch (error) {
-            const message = error instanceof Error ? error.message : "Unknown error";
-            new Notice("Failed to create template: " + message);
-          }
+          await generateDefaultTemplateHandler(
+            this.plugin,
+            "Area",
+            "areaTemplatePath",
+            () => this.display()
+          );
         })
     );
 
@@ -573,28 +573,12 @@ export class ParaManagerSettingTab extends PluginSettingTab {
       button
         .setButtonText("Generate Default")
         .onClick(async () => {
-          const defaultContent = generateDefaultTemplate("Resource");
-          const templatesFolder = "Templates";
-          await ensureFolderExistsVault(this.plugin.app, templatesFolder);
-          const templatePath = `${templatesFolder}/Resource.md`;
-
-          // Check if template already exists
-          const existing = this.plugin.app.vault.getAbstractFileByPath(templatePath);
-          if (existing) {
-            new Notice("Template already exists at " + templatePath);
-            return;
-          }
-
-          try {
-            await this.plugin.app.vault.create(templatePath, defaultContent);
-            this.plugin.settings.resourceTemplatePath = templatePath;
-            await this.plugin.saveSettings();
-            this.display(); // Refresh UI
-            new Notice("Created resource template at " + templatePath);
-          } catch (error) {
-            const message = error instanceof Error ? error.message : "Unknown error";
-            new Notice("Failed to create template: " + message);
-          }
+          await generateDefaultTemplateHandler(
+            this.plugin,
+            "Resource",
+            "resourceTemplatePath",
+            () => this.display()
+          );
         })
     );
   }
