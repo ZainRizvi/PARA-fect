@@ -94,7 +94,7 @@ export default class ParaManagerPlugin extends Plugin {
         }
 
         if (!checking) {
-          this.archiveItem(topLevelItem);
+          void this.archiveItem(topLevelItem);
         }
         return true;
       },
@@ -108,7 +108,7 @@ export default class ParaManagerPlugin extends Plugin {
           this.app,
           "Create Project",
           "Project name",
-          (name) => this.createParaItem(name, "projectsPath", "Project")
+          (name) => void this.createParaItem(name, "projectsPath", "Project")
         ).open();
       },
     });
@@ -121,7 +121,7 @@ export default class ParaManagerPlugin extends Plugin {
           this.app,
           "Create Area",
           "Area name",
-          (name) => this.createParaItem(name, "areasPath", "Area")
+          (name) => void this.createParaItem(name, "areasPath", "Area")
         ).open();
       },
     });
@@ -134,7 +134,7 @@ export default class ParaManagerPlugin extends Plugin {
           this.app,
           "Create Resource",
           "Resource name",
-          (name) => this.createParaItem(name, "resourcesPath", "Resource")
+          (name) => void this.createParaItem(name, "resourcesPath", "Resource")
         ).open();
       },
     });
