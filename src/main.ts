@@ -193,7 +193,7 @@ export default class ParaManagerPlugin extends Plugin {
 
     // Check if archive path matches any source folder
     if (sourceFolders.includes(archivePath)) {
-      new Notice("aPARAtus: Invalid settings detected (archive matches source folder), resetting to defaults");
+      new Notice("Invalid settings detected, resetting to defaults");
       this.settings.projectsPath = DEFAULT_SETTINGS.projectsPath;
       this.settings.areasPath = DEFAULT_SETTINGS.areasPath;
       this.settings.resourcesPath = DEFAULT_SETTINGS.resourcesPath;
@@ -205,7 +205,7 @@ export default class ParaManagerPlugin extends Plugin {
     // Check if source folders match each other
     const uniqueFolders = new Set(sourceFolders);
     if (uniqueFolders.size !== sourceFolders.length) {
-      new Notice("aPARAtus: Invalid settings detected (source folders match), resetting to defaults");
+      new Notice("Invalid settings detected, resetting to defaults");
       this.settings.projectsPath = DEFAULT_SETTINGS.projectsPath;
       this.settings.areasPath = DEFAULT_SETTINGS.areasPath;
       this.settings.resourcesPath = DEFAULT_SETTINGS.resourcesPath;
@@ -222,7 +222,7 @@ export default class ParaManagerPlugin extends Plugin {
     ];
     const nestedError = arePathsNested(allPaths);
     if (nestedError) {
-      new Notice(`aPARAtus: invalid settings detected (${nestedError}), resetting to defaults`);
+      new Notice("Invalid settings detected, resetting to defaults");
       this.settings.projectsPath = DEFAULT_SETTINGS.projectsPath;
       this.settings.areasPath = DEFAULT_SETTINGS.areasPath;
       this.settings.resourcesPath = DEFAULT_SETTINGS.resourcesPath;
