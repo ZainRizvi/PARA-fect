@@ -3,8 +3,8 @@
   "name": "PARA Manager",
   "version": "1.0.0",
   "minAppVersion": "1.0.0",
-  "description": "Manage PARA folders (Projects, Areas, Resources, Archive) with creation and archiving tools",
+  "description": "Streamline your PARA workflow: quickly create Projects, Areas, and Resources with templates, and archive completed work with one click.",
   "author": "ZainRizvi.io",
-  "authorUrl": "",
+  "authorUrl": "https://www.zainrizvi.io",
   "isDesktopOnly": false
 }

@@ -1,4 +1,5 @@
 import { Notice, Plugin, TAbstractFile, TFile, TFolder, normalizePath } from "obsidian";
+import { around } from "monkey-around";
 import {
   ParaManagerSettings,
   ParaManagerSettingTab,
@@ -9,9 +10,12 @@ import {
   getItemName,
   isTopLevelProjectFolder,
   arePathsNested,
+  compareByLastModified,
+  compareByDatePrefix,
 } from "./utils";
 import { ArchiveConfirmModal, NameInputModal } from "./modals";
-import { ensureFolderExists, getExistingPaths, focusFolder } from "./folder-ops";
+import { ensureFolderExists, getExistingPaths, focusFolder, getFolderLastModifiedTime } from "./folder-ops";
+import type { FileExplorerView } from "./obsidian-internals";
 
 declare global {
   interface Window {
@@ -22,12 +26,30 @@ declare global {
 /** Maximum retries for rename operation on collision */
 const MAX_RENAME_RETRIES = 3;
 
+/** Interface for Templater plugin API */
+interface TemplaterPlugin {
+  templater: {
+    parse_template(options: { template_file: TFile; target_file: TFile }): Promise<string>;
+  };
+}
+
 export default class ParaManagerPlugin extends Plugin {
   settings: ParaManagerSettings = DEFAULT_SETTINGS;
   private archivingItems = new Set<string>();
+  private sortingPatchUninstaller: (() => void) | null = null;
 
   async onload(): Promise<void> {
     await this.loadSettings();
+
+    // Install sorting patch for projects folder
+    this.installSortingPatch();
+
+    // Re-install when file explorer might have changed
+    this.registerEvent(
+      this.app.workspace.on('layout-change', () => {
+        this.installSortingPatch();
+      })
+    );
 
     // Add settings tab
     this.addSettingTab(new ParaManagerSettingTab(this.app, this));
@@ -124,6 +146,7 @@ export default class ParaManagerPlugin extends Plugin {
   }
 
   onunload(): void {
+    this.sortingPatchUninstaller?.();
     this.archivingItems.clear();
   }
 
@@ -180,6 +203,87 @@ export default class ParaManagerPlugin extends Plugin {
   }
 
   /**
+   * Check if Templater plugin is available and enabled.
+   * @returns True if Templater is available
+   */
+  private isTemplaterAvailable(): boolean {
+    try {
+      return !!(this.app as any).plugins?.plugins?.["templater-obsidian"];
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Check if core Templates plugin is available and enabled.
+   * @returns True if core Templates plugin is available
+   */
+  private isCoreTemplatesAvailable(): boolean {
+    try {
+      return !!(this.app as any).internalPlugins?.plugins?.["templates"];
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Apply a template to a file using Templater if available, otherwise use core templates.
+   * If template path is empty, uses default content (just "# Name").
+   * Supports both Templater and core Templates plugins.
+   *
+   * @param file - The target file to apply template to
+   * @param templatePath - Path to template file (empty string means no template)
+   * @param itemName - The name of the item (replaces {{name}} in templates)
+   * @returns The final content, or null if template application failed but should continue
+   */
+  private async applyTemplate(
+    file: TFile,
+    templatePath: string,
+    itemName: string
+  ): Promise<string | null> {
+    // If no template configured, use default
+    if (!templatePath.trim()) {
+      return `# ${itemName}\n`;
+    }
+
+    // Try to find the template file
+    const templateFile = this.app.vault.getAbstractFileByPath(templatePath);
+    if (!(templateFile instanceof TFile)) {
+      console.warn(`PARA Manager: Template file not found at ${templatePath}, using default`);
+      return `# ${itemName}\n`;
+    }
+
+    try {
+      // Prefer Templater if available
+      if (this.isTemplaterAvailable()) {
+        const templater = ((this.app as any).plugins?.plugins?.["templater-obsidian"] as TemplaterPlugin)?.templater;
+        if (templater) {
+          const result = await templater.parse_template({ template_file: templateFile, target_file: file });
+          return result;
+        }
+      }
+
+      // Fall back to core Templates plugin
+      if (this.isCoreTemplatesAvailable()) {
+        const content = await this.app.vault.read(templateFile);
+        // Core templates use simple variable substitution
+        // Replace {{name}} with the item name
+        const processed = content.replace(/{{name}}/g, itemName);
+        return processed;
+      }
+
+      // No template plugin available, read template content and do simple substitution
+      const content = await this.app.vault.read(templateFile);
+      const processed = content.replace(/{{name}}/g, itemName);
+      return processed;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      console.warn(`PARA Manager: Failed to apply template: ${message}, using default`);
+      return `# ${itemName}\n`;
+    }
+  }
+
+  /**
    * Format a project name using Moment.js date tokens and {{name}} placeholder.
    * Obsidian exposes moment globally as window.moment.
    *
@@ -202,6 +306,7 @@ export default class ParaManagerPlugin extends Plugin {
   /**
    * Create a new PARA item (Project, Area, or Resource).
    * Creates a folder and an index note inside it, then opens the note.
+   * Applies configured template if available.
    *
    * @param name - The name for the new item
    * @param settingsKey - Which settings path to use (projectsPath, areasPath, resourcesPath)
@@ -237,8 +342,25 @@ export default class ParaManagerPlugin extends Plugin {
 
       // Create index note (title uses just the name, not the formatted folder name)
       const indexPath = normalizePath(`${itemPath}/index.md`);
-      const indexContent = `# ${name}\n`;
-      const file = await this.app.vault.create(indexPath, indexContent);
+
+      // Get the appropriate template path based on item type
+      let templatePath = "";
+      if (settingsKey === "projectsPath") {
+        templatePath = this.settings.projectTemplatePath;
+      } else if (settingsKey === "areasPath") {
+        templatePath = this.settings.areaTemplatePath;
+      } else if (settingsKey === "resourcesPath") {
+        templatePath = this.settings.resourceTemplatePath;
+      }
+
+      // Create the file first (empty)
+      const file = await this.app.vault.create(indexPath, "");
+
+      // Apply template to the file
+      const indexContent = await this.applyTemplate(file, templatePath, name);
+      if (indexContent) {
+        await this.app.vault.modify(file, indexContent);
+      }
 
       // Open the note
       await this.app.workspace.getLeaf().openFile(file);
@@ -289,6 +411,73 @@ export default class ParaManagerPlugin extends Plugin {
       current = current.parent;
     }
     return null;
+  }
+
+  /**
+   * Install a monkey patch on the file explorer's getSortedFolderItems method
+   * to intercept and sort projects when the Projects folder is being displayed.
+   * The patch is only active if projectSortOrder is not 'disabled'.
+   */
+  private installSortingPatch(): void {
+    // Clean up existing patch
+    this.sortingPatchUninstaller?.();
+
+    if (this.settings.projectSortOrder === "disabled") {
+      return;
+    }
+
+    const fileExplorerLeaf = this.app.workspace.getLeavesOfType("file-explorer")[0];
+    if (!fileExplorerLeaf) {
+      return;
+    }
+
+    const view = fileExplorerLeaf.view as FileExplorerView;
+    const projectsPath = normalizePath(this.settings.projectsPath);
+    const plugin = this;
+
+    this.sortingPatchUninstaller = around(view.constructor.prototype, {
+      getSortedFolderItems(original) {
+        return function (this: any, folder: TFolder) {
+          // Only intercept for Projects folder
+          if (folder.path !== projectsPath) {
+            return original.call(this, folder);
+          }
+
+          try {
+            const items = original.call(this, folder);
+            return plugin.sortProjectItems(items);
+          } catch (e) {
+            console.error("PARA Manager: Sorting failed, using default", e);
+            return original.call(this, folder);
+          }
+        };
+      },
+    });
+  }
+
+  /**
+   * Sort project items according to the configured sort order.
+   * Applies the sort order setting to reorder folder items.
+   *
+   * @param items - The items to sort
+   * @returns The sorted items
+   */
+  private sortProjectItems(items: TAbstractFile[]): TAbstractFile[] {
+    const sorted = [...items];
+
+    if (this.settings.projectSortOrder === "lastModified") {
+      sorted.sort((a, b) => {
+        const mtimeA =
+          a instanceof TFolder ? getFolderLastModifiedTime(a) : (a as TFile).stat.mtime;
+        const mtimeB =
+          b instanceof TFolder ? getFolderLastModifiedTime(b) : (b as TFile).stat.mtime;
+        return compareByLastModified({ mtime: mtimeA }, { mtime: mtimeB });
+      });
+    } else if (this.settings.projectSortOrder === "datePrefix") {
+      sorted.sort((a, b) => compareByDatePrefix({ name: a.name }, { name: b.name }));
+    }
+
+    return sorted;
   }
 
   /**

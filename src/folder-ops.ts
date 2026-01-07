@@ -101,7 +101,37 @@ export async function focusFolder(app: App, folderPath: string): Promise<void> {
       fileExplorerView.revealInFolder(folder as TAbstractFile);
     }
   } catch (error) {
-    // Best-effort: log for debugging but don't bother user
+    // Best-effort UX enhancement - silent failure is acceptable here
+    // unlike core operations (archiving) which show Notice to user
     console.debug("PARA Manager: Could not focus folder", error);
   }
 }
+
+/**
+ * Get the maximum mtime (modification time) among all files in a folder and its subfolders.
+ * Used for calculating the "last modified" time of a project folder.
+ *
+ * @param folder - The folder to scan
+ * @returns The maximum mtime in milliseconds, or 0 if folder has no files
+ */
+export function getFolderLastModifiedTime(folder: TFolder): number {
+  let maxMtime = 0;
+
+  const traverse = (f: TFolder): void => {
+    for (const child of f.children) {
+      if (child instanceof TFolder) {
+        traverse(child);
+      } else {
+        // TFile has mtime property
+        const file = child as any;
+        if (typeof file.stat?.mtime === "number") {
+          maxMtime = Math.max(maxMtime, file.stat.mtime);
+        }
+      }
+    }
+  };
+
+  traverse(folder);
+  return maxMtime;
+}
+

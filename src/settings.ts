@@ -1,6 +1,67 @@
-import { AbstractInputSuggest, App, PluginSettingTab, Setting, TextComponent, TFolder } from "obsidian";
+import { AbstractInputSuggest, App, Notice, PluginSettingTab, Setting, TextComponent, TFolder, normalizePath } from "obsidian";
 import type ParaManagerPlugin from "./main";
 import { validateParaFolderPath, type ParaFolderField } from "./utils";
+
+/**
+ * Ensure a folder exists in the vault, creating it if necessary.
+ */
+async function ensureFolderExistsVault(app: App, folderPath: string): Promise<void> {
+  const normalized = normalizePath(folderPath);
+  const existing = app.vault.getAbstractFileByPath(normalized);
+  if (!existing) {
+    await app.vault.createFolder(normalized);
+  }
+}
+
+/**
+ * Generate a default template for a PARA item type.
+ * Creates a basic starter template with the item type and description.
+ */
+function generateDefaultTemplate(itemType: "Project" | "Area" | "Resource"): string {
+  const descriptions: Record<string, string> = {
+    Project: `# {{name}}
+
+A project is a series of tasks linked to a goal, with a deadline.
+
+## Status
+- [ ] In Progress
+
+## Goals
+-
+
+## Tasks
+-
+
+## Notes
+- `,
+    Area: `# {{name}}
+
+An area is a sphere of activity with a standard to maintain over time.
+
+## Responsibilities
+-
+
+## Standards
+-
+
+## Notes
+- `,
+    Resource: `# {{name}}
+
+A resource is a topic or tool you want to reference in the future.
+
+## Overview
+-
+
+## Key Points
+-
+
+## Related Resources
+- `,
+  };
+
+  return descriptions[itemType] || `# {{name}}\n`;
+}
 
 /**
  * Provides folder autocomplete suggestions for text inputs.
@@ -41,6 +102,10 @@ export interface ParaManagerSettings {
   focusAfterArchive: boolean;
   confirmBeforeArchive: boolean;
   projectFolderFormat: string;
+  projectTemplatePath: string;
+  areaTemplatePath: string;
+  resourceTemplatePath: string;
+  projectSortOrder: "disabled" | "lastModified" | "datePrefix";
 }
 
 export const DEFAULT_SETTINGS: ParaManagerSettings = {
@@ -51,6 +116,10 @@ export const DEFAULT_SETTINGS: ParaManagerSettings = {
   focusAfterArchive: true,
   confirmBeforeArchive: false,
   projectFolderFormat: "YYYY-MM-DD {{name}}",
+  projectTemplatePath: "",
+  areaTemplatePath: "",
+  resourceTemplatePath: "",
+  projectSortOrder: "disabled",
 };
 
 /** Default values for each folder field */
@@ -65,6 +134,87 @@ const FOLDER_DEFAULTS: Record<ParaFolderField, string> = {
 const INVALID_INPUT_CLASS = "para-manager-invalid-input";
 /** CSS class for warning input styling */
 const WARNING_INPUT_CLASS = "para-manager-warning-input";
+
+/**
+ * Set up a template file path input with autocomplete for markdown files.
+ * Shows warning if file doesn't exist (it will be created).
+ */
+function setupTemplatePathInput(
+  setting: Setting,
+  text: TextComponent,
+  plugin: ParaManagerPlugin,
+  onSave: (path: string) => Promise<void>
+): void {
+  const inputEl = text.inputEl;
+
+  // Create a custom suggest for markdown files
+  class FileInputSuggest extends AbstractInputSuggest<any> {
+    constructor(app: App, inputEl: HTMLInputElement) {
+      super(app, inputEl);
+    }
+
+    getSuggestions(inputStr: string): any[] {
+      const files = plugin.app.vault.getAllLoadedFiles()
+        .filter((f): f is any => {
+          return typeof f.name === "string" && f.name.endsWith(".md");
+        });
+
+      if (!inputStr) return files.slice(0, 50); // Limit suggestions
+
+      const lowerInput = inputStr.toLowerCase();
+      return files.filter(file =>
+        file.path.toLowerCase().includes(lowerInput)
+      ).slice(0, 20);
+    }
+
+    renderSuggestion(file: any, el: HTMLElement): void {
+      el.setText(file.path);
+    }
+
+    selectSuggestion(file: any): void {
+      this.setValue(file.path);
+      this.close();
+    }
+  }
+
+  new FileInputSuggest(plugin.app, inputEl);
+
+  // Create warning element (hidden by default)
+  const warningEl = document.createElement("div");
+  warningEl.classList.add("para-manager-inline-message");
+  warningEl.style.display = "none";
+  warningEl.style.color = "var(--text-muted)";
+  setting.settingEl.insertAdjacentElement("afterend", warningEl);
+
+  /**
+   * Update warning state based on file existence.
+   * Shows warning if file doesn't exist (will be created).
+   */
+  const updateWarningState = (path: string): void => {
+    if (!path.trim()) {
+      warningEl.style.display = "none";
+      return;
+    }
+
+    const file = plugin.app.vault.getAbstractFileByPath(path);
+    if (!file) {
+      warningEl.textContent = `Template file "${path}" does not exist (will use default template)`;
+      warningEl.style.display = "block";
+    } else {
+      warningEl.style.display = "none";
+    }
+  };
+
+  // Validate and save on blur
+  inputEl.addEventListener("blur", async () => {
+    const value = text.getValue().trim();
+    updateWarningState(value);
+    await onSave(value);
+  });
+
+  // Initial warning state
+  setTimeout(() => updateWarningState(text.getValue()), 0);
+}
 
 /**
  * Set up a folder path text input with blur-based validation.
@@ -280,5 +430,170 @@ export class ParaManagerSettingTab extends PluginSettingTab {
             await this.plugin.saveSettings();
           })
       );
+
+    new Setting(containerEl)
+      .setName("Project folder sort order")
+      .setDesc("How to sort projects in the Projects folder")
+      .addDropdown((dropdown) =>
+        dropdown
+          .addOption("disabled", "Disabled (manual order)")
+          .addOption("lastModified", "Last modified (newest first)")
+          .addOption("datePrefix", "Date prefix (newer first)")
+          .setValue(this.plugin.settings.projectSortOrder)
+          .onChange(async (value) => {
+            this.plugin.settings.projectSortOrder = value as "disabled" | "lastModified" | "datePrefix";
+            await this.plugin.saveSettings();
+
+            // Trigger re-sort immediately
+            const fileExplorer = this.plugin.app.workspace.getLeavesOfType("file-explorer")[0];
+            if (fileExplorer) {
+              (fileExplorer.view as any).requestSort?.();
+            }
+          })
+      );
+
+    // Template settings header
+    containerEl.createEl("h3", { text: "Templates" });
+
+    // Project template
+    const projectTemplateSetting = new Setting(containerEl)
+      .setName("Project template")
+      .setDesc("Template file to apply when creating new projects (optional)");
+
+    projectTemplateSetting.addText((text) => {
+      setupTemplatePathInput(
+        projectTemplateSetting,
+        text,
+        this.plugin,
+        async (value) => {
+          this.plugin.settings.projectTemplatePath = value;
+          await this.plugin.saveSettings();
+        }
+      );
+      text.setValue(this.plugin.settings.projectTemplatePath);
+    });
+
+    projectTemplateSetting.addButton((button) =>
+      button
+        .setButtonText("Generate Default")
+        .onClick(async () => {
+          const defaultContent = generateDefaultTemplate("Project");
+          const templatesFolder = "Templates";
+          await ensureFolderExistsVault(this.plugin.app, templatesFolder);
+          const templatePath = `${templatesFolder}/Project.md`;
+
+          // Check if template already exists
+          const existing = this.plugin.app.vault.getAbstractFileByPath(templatePath);
+          if (existing) {
+            new Notice("Template already exists at " + templatePath);
+            return;
+          }
+
+          try {
+            await this.plugin.app.vault.create(templatePath, defaultContent);
+            this.plugin.settings.projectTemplatePath = templatePath;
+            await this.plugin.saveSettings();
+            this.display(); // Refresh UI
+            new Notice("Created project template at " + templatePath);
+          } catch (error) {
+            const message = error instanceof Error ? error.message : "Unknown error";
+            new Notice("Failed to create template: " + message);
+          }
+        })
+    );
+
+    // Area template
+    const areaTemplateSetting = new Setting(containerEl)
+      .setName("Area template")
+      .setDesc("Template file to apply when creating new areas (optional)");
+
+    areaTemplateSetting.addText((text) => {
+      setupTemplatePathInput(
+        areaTemplateSetting,
+        text,
+        this.plugin,
+        async (value) => {
+          this.plugin.settings.areaTemplatePath = value;
+          await this.plugin.saveSettings();
+        }
+      );
+      text.setValue(this.plugin.settings.areaTemplatePath);
+    });
+
+    areaTemplateSetting.addButton((button) =>
+      button
+        .setButtonText("Generate Default")
+        .onClick(async () => {
+          const defaultContent = generateDefaultTemplate("Area");
+          const templatesFolder = "Templates";
+          await ensureFolderExistsVault(this.plugin.app, templatesFolder);
+          const templatePath = `${templatesFolder}/Area.md`;
+
+          // Check if template already exists
+          const existing = this.plugin.app.vault.getAbstractFileByPath(templatePath);
+          if (existing) {
+            new Notice("Template already exists at " + templatePath);
+            return;
+          }
+
+          try {
+            await this.plugin.app.vault.create(templatePath, defaultContent);
+            this.plugin.settings.areaTemplatePath = templatePath;
+            await this.plugin.saveSettings();
+            this.display(); // Refresh UI
+            new Notice("Created area template at " + templatePath);
+          } catch (error) {
+            const message = error instanceof Error ? error.message : "Unknown error";
+            new Notice("Failed to create template: " + message);
+          }
+        })
+    );
+
+    // Resource template
+    const resourceTemplateSetting = new Setting(containerEl)
+      .setName("Resource template")
+      .setDesc("Template file to apply when creating new resources (optional)");
+
+    resourceTemplateSetting.addText((text) => {
+      setupTemplatePathInput(
+        resourceTemplateSetting,
+        text,
+        this.plugin,
+        async (value) => {
+          this.plugin.settings.resourceTemplatePath = value;
+          await this.plugin.saveSettings();
+        }
+      );
+      text.setValue(this.plugin.settings.resourceTemplatePath);
+    });
+
+    resourceTemplateSetting.addButton((button) =>
+      button
+        .setButtonText("Generate Default")
+        .onClick(async () => {
+          const defaultContent = generateDefaultTemplate("Resource");
+          const templatesFolder = "Templates";
+          await ensureFolderExistsVault(this.plugin.app, templatesFolder);
+          const templatePath = `${templatesFolder}/Resource.md`;
+
+          // Check if template already exists
+          const existing = this.plugin.app.vault.getAbstractFileByPath(templatePath);
+          if (existing) {
+            new Notice("Template already exists at " + templatePath);
+            return;
+          }
+
+          try {
+            await this.plugin.app.vault.create(templatePath, defaultContent);
+            this.plugin.settings.resourceTemplatePath = templatePath;
+            await this.plugin.saveSettings();
+            this.display(); // Refresh UI
+            new Notice("Created resource template at " + templatePath);
+          } catch (error) {
+            const message = error instanceof Error ? error.message : "Unknown error";
+            new Notice("Failed to create template: " + message);
+          }
+        })
+    );
   }
 }

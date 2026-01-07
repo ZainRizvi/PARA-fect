@@ -1,7 +1,7 @@
 {
   "name": "para-manager",
   "version": "1.0.0",
-  "description": "Obsidian plugin for managing PARA folders: create and archive Projects, Areas, Resources",
+  "description": "Obsidian plugin for PARA methodology: create and archive Projects, Areas, and Resources with ease",
   "main": "main.js",
   "type": "module",
   "scripts": {
@@ -35,5 +35,8 @@
     "obsidian": "^1.7.2",
     "typescript": "^5.6.0",
     "vitest": "^2.0.0"
+  },
+  "dependencies": {
+    "monkey-around": "^3.0.0"
   }
 }
