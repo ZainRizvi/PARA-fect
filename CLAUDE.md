@@ -130,6 +130,12 @@ Maps plugin versions to minimum required Obsidian versions.
 
 Use the GitHub Actions workflow to bump version and release:
 
+**Via CLI:**
+```bash
+gh workflow run bump-version.yml -f bump=patch   # or minor, major
+```
+
+**Via GitHub UI:**
 1. Go to **Actions** → **Bump Version and Release** → **Run workflow**
 2. Select bump type:
    - `patch` — Bug fixes (0.1.0 → 0.1.1)
