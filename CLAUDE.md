@@ -116,6 +116,7 @@ Maps plugin versions to minimum required Obsidian versions.
 | `npm run typecheck` | TypeScript type checking |
 | `npm test` | Run vitest unit tests |
 | `npm run install:dev` | Install to test vault |
+| `npm run release` | Release new version (patch/minor/major) |
 
 ## Development Workflow
 
@@ -126,9 +127,20 @@ Maps plugin versions to minimum required Obsidian versions.
 
 ## Releasing
 
-### Option 1: Automated (Recommended)
+### Option 1: Local Script (Recommended)
 
-Use the GitHub Actions workflow to bump version and release:
+Fastest option - runs locally instead of waiting for GitHub Actions:
+
+```bash
+npm run release           # patch release (0.1.0 → 0.1.1)
+npm run release patch     # same as above
+npm run release minor     # new features (0.1.0 → 0.2.0)
+npm run release major     # breaking changes (0.1.0 → 1.0.0)
+```
+
+### Option 2: GitHub Actions
+
+Use when you don't have the repo cloned or prefer CI:
 
 **Via CLI:**
 ```bash
@@ -141,19 +153,6 @@ gh workflow run bump-version.yml -f bump=patch   # or minor, major
    - `patch` — Bug fixes (0.1.0 → 0.1.1)
    - `minor` — New features (0.1.0 → 0.2.0)
    - `major` — Breaking changes (0.1.0 → 1.0.0)
-3. The workflow automatically:
-   - Updates `manifest.json`, `package.json`, `versions.json`
-   - Commits, tags, and pushes
-   - Creates a GitHub release with `main.js` and `manifest.json`
-
-### Option 2: Manual
-
-1. Update version in `manifest.json`, `package.json`, and `versions.json`
-2. Build: `npm run build`
-3. Commit: `git add -A && git commit -m "Bump version to X.Y.Z"`
-4. Tag: `git tag X.Y.Z`
-5. Push: `git push origin main --tags`
-6. The `release.yml` workflow creates the GitHub release automatically
 
 ### After First Community Plugin Acceptance
 

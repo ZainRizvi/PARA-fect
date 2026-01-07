@@ -11,7 +11,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "install:dev": "node scripts/install-dev.mjs"
+    "install:dev": "node scripts/install-dev.mjs",
+    "release": "node scripts/release.mjs"
   },
   "keywords": [
     "obsidian",
