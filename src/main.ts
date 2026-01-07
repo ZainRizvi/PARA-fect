@@ -159,7 +159,7 @@ export default class ParaManagerPlugin extends Plugin {
 
     // Check if archive path matches any source folder
     if (sourceFolders.includes(archivePath)) {
-      new Notice("PARA Manager: Invalid settings detected (archive matches source folder), resetting to defaults");
+      new Notice("PARA-fect: Invalid settings detected (archive matches source folder), resetting to defaults");
       this.settings.projectsPath = DEFAULT_SETTINGS.projectsPath;
       this.settings.areasPath = DEFAULT_SETTINGS.areasPath;
       this.settings.resourcesPath = DEFAULT_SETTINGS.resourcesPath;
@@ -171,7 +171,7 @@ export default class ParaManagerPlugin extends Plugin {
     // Check if source folders match each other
     const uniqueFolders = new Set(sourceFolders);
     if (uniqueFolders.size !== sourceFolders.length) {
-      new Notice("PARA Manager: Invalid settings detected (source folders match), resetting to defaults");
+      new Notice("PARA-fect: Invalid settings detected (source folders match), resetting to defaults");
       this.settings.projectsPath = DEFAULT_SETTINGS.projectsPath;
       this.settings.areasPath = DEFAULT_SETTINGS.areasPath;
       this.settings.resourcesPath = DEFAULT_SETTINGS.resourcesPath;
@@ -188,7 +188,7 @@ export default class ParaManagerPlugin extends Plugin {
     ];
     const nestedError = arePathsNested(allPaths);
     if (nestedError) {
-      new Notice(`PARA Manager: Invalid settings detected (${nestedError}), resetting to defaults`);
+      new Notice(`PARA-fect: Invalid settings detected (${nestedError}), resetting to defaults`);
       this.settings.projectsPath = DEFAULT_SETTINGS.projectsPath;
       this.settings.areasPath = DEFAULT_SETTINGS.areasPath;
       this.settings.resourcesPath = DEFAULT_SETTINGS.resourcesPath;
@@ -249,7 +249,7 @@ export default class ParaManagerPlugin extends Plugin {
     // Try to find the template file
     const templateFile = this.app.vault.getAbstractFileByPath(templatePath);
     if (!(templateFile instanceof TFile)) {
-      console.warn(`PARA Manager: Template file not found at ${templatePath}, using default`);
+      console.warn(`PARA-fect: Template file not found at ${templatePath}, using default`);
       return `# ${itemName}\n`;
     }
 
@@ -278,7 +278,7 @@ export default class ParaManagerPlugin extends Plugin {
       return processed;
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown error";
-      console.warn(`PARA Manager: Failed to apply template: ${message}, using default`);
+      console.warn(`PARA-fect: Failed to apply template: ${message}, using default`);
       return `# ${itemName}\n`;
     }
   }
@@ -369,7 +369,7 @@ export default class ParaManagerPlugin extends Plugin {
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown error";
       new Notice(`Failed to create ${itemType.toLowerCase()}: ${message}`);
-      console.error(`PARA Manager: Failed to create ${itemType}`, error);
+      console.error(`PARA-fect: Failed to create ${itemType}`, error);
     }
   }
 
@@ -447,7 +447,7 @@ export default class ParaManagerPlugin extends Plugin {
             const items = original.call(this, folder);
             return plugin.sortProjectItems(items);
           } catch (e) {
-            console.error("PARA Manager: Sorting failed, using default", e);
+            console.error("PARA-fect: Sorting failed, using default", e);
             return original.call(this, folder);
           }
         };
@@ -548,7 +548,7 @@ export default class ParaManagerPlugin extends Plugin {
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown error";
       new Notice(`Failed to archive "${itemName}": ${message}`);
-      console.error("PARA Manager: Failed to archive item", error);
+      console.error("PARA-fect: Failed to archive item", error);
     } finally {
       this.archivingItems.delete(item.path);
     }

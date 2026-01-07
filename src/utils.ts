@@ -1,5 +1,5 @@
 /**
- * Pure utility functions for the PARA Manager plugin.
+ * Pure utility functions for the PARA-fect plugin.
  * These functions have no Obsidian dependencies and are fully testable.
  */
 

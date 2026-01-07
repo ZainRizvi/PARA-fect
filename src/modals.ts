@@ -1,5 +1,5 @@
 /**
- * Modal dialogs for the PARA Manager plugin.
+ * Modal dialogs for the PARA-fect plugin.
  */
 
 import { App, Modal } from "obsidian";
