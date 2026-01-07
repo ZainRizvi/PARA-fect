@@ -444,7 +444,9 @@ export class ParaManagerSettingTab extends PluginSettingTab {
             this.plugin.settings.projectSortOrder = value as "disabled" | "lastModified" | "datePrefix";
             await this.plugin.saveSettings();
 
-            // Trigger re-sort immediately
+            // Re-install patch (needed when switching from disabled to enabled)
+            // and trigger re-sort
+            this.plugin.installSortingPatch();
             const fileExplorer = this.plugin.app.workspace.getLeavesOfType("file-explorer")[0];
             if (fileExplorer) {
               (fileExplorer.view as any).requestSort?.();

@@ -41,8 +41,11 @@ export default class ParaManagerPlugin extends Plugin {
   async onload(): Promise<void> {
     await this.loadSettings();
 
-    // Install sorting patch for projects folder
-    this.installSortingPatch();
+    // Install sorting patch for projects folder once layout is ready
+    // (file explorer may not exist yet during onload)
+    this.app.workspace.onLayoutReady(() => {
+      this.installSortingPatch();
+    });
 
     // Re-install when file explorer might have changed
     this.registerEvent(
@@ -417,10 +420,18 @@ export default class ParaManagerPlugin extends Plugin {
    * Install a monkey patch on the file explorer's getSortedFolderItems method
    * to intercept and sort projects when the Projects folder is being displayed.
    * The patch is only active if projectSortOrder is not 'disabled'.
+   * Public so settings can re-install patch when sort order changes.
+   *
+   * Reference implementation: https://github.com/SebastianMC/obsidian-custom-sort
+   * Key patterns borrowed:
+   * - Wait for onLayoutReady before patching (file explorer may not exist during onload)
+   * - Re-install patch when settings change (not just call requestSort)
+   * - Verify getSortedFolderItems/requestSort exist before patching (undocumented APIs)
    */
-  private installSortingPatch(): void {
+  installSortingPatch(): void {
     // Clean up existing patch
     this.sortingPatchUninstaller?.();
+    this.sortingPatchUninstaller = null;
 
     if (this.settings.projectSortOrder === "disabled") {
       return;
@@ -428,10 +439,22 @@ export default class ParaManagerPlugin extends Plugin {
 
     const fileExplorerLeaf = this.app.workspace.getLeavesOfType("file-explorer")[0];
     if (!fileExplorerLeaf) {
+      console.warn("aPARAtus: File explorer not found, cannot install sorting patch");
       return;
     }
 
     const view = fileExplorerLeaf.view as FileExplorerView;
+
+    // Verify that the methods we need exist (undocumented APIs can change)
+    if (typeof view.getSortedFolderItems !== "function") {
+      console.warn("aPARAtus: getSortedFolderItems not found on file explorer view");
+      return;
+    }
+    if (typeof view.requestSort !== "function") {
+      console.warn("aPARAtus: requestSort not found on file explorer view");
+      return;
+    }
+
     const projectsPath = normalizePath(this.settings.projectsPath);
     const plugin = this;
 
