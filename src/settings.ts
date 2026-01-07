@@ -236,10 +236,12 @@ function setupTemplatePathInput(
   };
 
   // Validate and save on blur
-  inputEl.addEventListener("blur", async () => {
-    const value = text.getValue().trim();
-    updateWarningState(value);
-    await onSave(value);
+  inputEl.addEventListener("blur", () => {
+    void (async () => {
+      const value = text.getValue().trim();
+      updateWarningState(value);
+      await onSave(value);
+    })();
   });
 
   // Initial warning state
@@ -293,38 +295,40 @@ function setupFolderPathInput(
   setTimeout(() => updateWarningState(plugin.settings[field]), 0);
 
   // Validate and save on blur (when user leaves the field)
-  inputEl.addEventListener("blur", async () => {
-    const value = text.getValue();
-    const normalized = value.trim().replace(/\/+$/, "") || FOLDER_DEFAULTS[field];
+  inputEl.addEventListener("blur", () => {
+    void (async () => {
+      const value = text.getValue();
+      const normalized = value.trim().replace(/\/+$/, "") || FOLDER_DEFAULTS[field];
 
-    const error = validateParaFolderPath(normalized, field, plugin.settings);
+      const error = validateParaFolderPath(normalized, field, plugin.settings);
 
-    if (error) {
-      // Show error state (red - more severe than warning)
-      inputEl.classList.add(INVALID_INPUT_CLASS);
-      inputEl.classList.remove(WARNING_INPUT_CLASS);
-      warningEl.textContent = error;
-      warningEl.classList.remove("aparatus-text-warning");
-      warningEl.classList.add("aparatus-text-error");
-      warningEl.classList.remove("aparatus-hidden");
-      // Revert to last valid value
-      text.setValue(plugin.settings[field]);
-      // Clear error styling after reverting and check warning state
-      setTimeout(() => {
+      if (error) {
+        // Show error state (red - more severe than warning)
+        inputEl.classList.add(INVALID_INPUT_CLASS);
+        inputEl.classList.remove(WARNING_INPUT_CLASS);
+        warningEl.textContent = error;
+        warningEl.classList.remove("aparatus-text-warning");
+        warningEl.classList.add("aparatus-text-error");
+        warningEl.classList.remove("aparatus-hidden");
+        // Revert to last valid value
+        text.setValue(plugin.settings[field]);
+        // Clear error styling after reverting and check warning state
+        setTimeout(() => {
+          inputEl.classList.remove(INVALID_INPUT_CLASS);
+          warningEl.classList.remove("aparatus-text-error");
+          warningEl.classList.add("aparatus-text-warning");
+          updateWarningState(plugin.settings[field]);
+        }, 100);
+      } else {
+        // Clear error state
         inputEl.classList.remove(INVALID_INPUT_CLASS);
-        warningEl.classList.remove("aparatus-text-error");
-        warningEl.classList.add("aparatus-text-warning");
-        updateWarningState(plugin.settings[field]);
-      }, 100);
-    } else {
-      // Clear error state
-      inputEl.classList.remove(INVALID_INPUT_CLASS);
-      // Check folder existence (updates warning state)
-      updateWarningState(normalized);
-      // Save
-      plugin.settings[field] = normalized;
-      await plugin.saveSettings();
-    }
+        // Check folder existence (updates warning state)
+        updateWarningState(normalized);
+        // Save
+        plugin.settings[field] = normalized;
+        await plugin.saveSettings();
+      }
+    })();
   });
 }
 
@@ -422,16 +426,18 @@ export class ParaManagerSettingTab extends PluginSettingTab {
       });
 
       // Save on blur if valid
-      inputEl.addEventListener("blur", async () => {
-        const value = text.getValue().trim() || DEFAULT_SETTINGS.projectFolderFormat;
-        if (updatePreview(value)) {
-          this.plugin.settings.projectFolderFormat = value;
-          await this.plugin.saveSettings();
-        } else {
-          // Revert to last valid value
-          text.setValue(this.plugin.settings.projectFolderFormat);
-          updatePreview(this.plugin.settings.projectFolderFormat);
-        }
+      inputEl.addEventListener("blur", () => {
+        void (async () => {
+          const value = text.getValue().trim() || DEFAULT_SETTINGS.projectFolderFormat;
+          if (updatePreview(value)) {
+            this.plugin.settings.projectFolderFormat = value;
+            await this.plugin.saveSettings();
+          } else {
+            // Revert to last valid value
+            text.setValue(this.plugin.settings.projectFolderFormat);
+            updatePreview(this.plugin.settings.projectFolderFormat);
+          }
+        })();
       });
     });
 
@@ -508,7 +514,7 @@ export class ParaManagerSettingTab extends PluginSettingTab {
 
     projectTemplateSetting.addButton((button) =>
       button
-        .setButtonText("Generate Default")
+        .setButtonText("Generate default")
         .onClick(async () => {
           await generateDefaultTemplateHandler(
             this.plugin,
@@ -539,7 +545,7 @@ export class ParaManagerSettingTab extends PluginSettingTab {
 
     areaTemplateSetting.addButton((button) =>
       button
-        .setButtonText("Generate Default")
+        .setButtonText("Generate default")
         .onClick(async () => {
           await generateDefaultTemplateHandler(
             this.plugin,
@@ -570,7 +576,7 @@ export class ParaManagerSettingTab extends PluginSettingTab {
 
     resourceTemplateSetting.addButton((button) =>
       button
-        .setButtonText("Generate Default")
+        .setButtonText("Generate default")
         .onClick(async () => {
           await generateDefaultTemplateHandler(
             this.plugin,

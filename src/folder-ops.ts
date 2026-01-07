@@ -76,7 +76,7 @@ export function getExistingPaths(app: App, folderPath: string): Set<string> {
  * WARNING: Uses undocumented internal Obsidian API (revealInFolder).
  * Tested on Obsidian 1.7.x. May break in future versions.
  */
-export async function focusFolder(app: App, folderPath: string): Promise<void> {
+export function focusFolder(app: App, folderPath: string): void {
   const normalizedPath = normalizePath(folderPath);
   const folder = app.vault.getAbstractFileByPath(normalizedPath);
 
@@ -98,7 +98,7 @@ export async function focusFolder(app: App, folderPath: string): Promise<void> {
     };
 
     if (typeof fileExplorerView.revealInFolder === "function") {
-      fileExplorerView.revealInFolder(folder as TAbstractFile);
+      fileExplorerView.revealInFolder(folder);
     }
   } catch {
     // Best-effort UX enhancement - silent failure is acceptable here
@@ -120,11 +120,9 @@ export function getFolderLastModifiedTime(folder: TFolder): number {
     for (const child of f.children) {
       if (child instanceof TFolder) {
         traverse(child);
-      } else {
-        // child must be a TFile (already verified by the if check above)
-        const file = child as TFile;
-        if (typeof file.stat?.mtime === "number") {
-          maxMtime = Math.max(maxMtime, file.stat.mtime);
+      } else if (child instanceof TFile) {
+        if (typeof child.stat?.mtime === "number") {
+          maxMtime = Math.max(maxMtime, child.stat.mtime);
         }
       }
     }

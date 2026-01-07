@@ -32,7 +32,7 @@ export class ArchiveConfirmModal extends Modal {
 
   onOpen() {
     const { contentEl } = this;
-    contentEl.createEl("h2", { text: "Archive Item?" });
+    contentEl.createEl("h2", { text: "Archive item?" });
     contentEl.createEl("p", { text: `Move "${this.itemName}" to:` });
     contentEl.createEl("p", { text: this.destPath });
 

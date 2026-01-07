@@ -1,4 +1,4 @@
-import { Notice, Plugin, TAbstractFile, TFile, TFolder, normalizePath, debounce } from "obsidian";
+import { App, Notice, Plugin, TAbstractFile, TFile, TFolder, normalizePath, debounce } from "obsidian";
 import { around } from "monkey-around";
 import {
   ParaManagerSettings,
@@ -16,6 +16,16 @@ import {
 import { ArchiveConfirmModal, NameInputModal } from "./modals";
 import { ensureFolderExists, getExistingPaths, focusFolder, getFolderLastModifiedTime } from "./folder-ops";
 import type { FileExplorerView, FileExplorerItem } from "./obsidian-internals";
+
+// Obsidian internal API types (not in public type definitions)
+interface ObsidianAppWithPlugins extends App {
+  plugins?: {
+    plugins?: Record<string, unknown>;
+  };
+  internalPlugins?: {
+    plugins?: Record<string, unknown>;
+  };
+}
 
 declare global {
   interface Window {
@@ -183,7 +193,7 @@ export default class ParaManagerPlugin extends Plugin {
 
     // Check if archive path matches any source folder
     if (sourceFolders.includes(archivePath)) {
-      new Notice("aPARAtus: Invalid settings detected (archive matches source folder), resetting to defaults");
+      new Notice("aPARAtus: invalid settings detected (archive matches source folder), resetting to defaults");
       this.settings.projectsPath = DEFAULT_SETTINGS.projectsPath;
       this.settings.areasPath = DEFAULT_SETTINGS.areasPath;
       this.settings.resourcesPath = DEFAULT_SETTINGS.resourcesPath;
@@ -195,7 +205,7 @@ export default class ParaManagerPlugin extends Plugin {
     // Check if source folders match each other
     const uniqueFolders = new Set(sourceFolders);
     if (uniqueFolders.size !== sourceFolders.length) {
-      new Notice("aPARAtus: Invalid settings detected (source folders match), resetting to defaults");
+      new Notice("aPARAtus: invalid settings detected (source folders match), resetting to defaults");
       this.settings.projectsPath = DEFAULT_SETTINGS.projectsPath;
       this.settings.areasPath = DEFAULT_SETTINGS.areasPath;
       this.settings.resourcesPath = DEFAULT_SETTINGS.resourcesPath;
@@ -212,7 +222,7 @@ export default class ParaManagerPlugin extends Plugin {
     ];
     const nestedError = arePathsNested(allPaths);
     if (nestedError) {
-      new Notice(`aPARAtus: Invalid settings detected (${nestedError}), resetting to defaults`);
+      new Notice(`aPARAtus: invalid settings detected (${nestedError}), resetting to defaults`);
       this.settings.projectsPath = DEFAULT_SETTINGS.projectsPath;
       this.settings.areasPath = DEFAULT_SETTINGS.areasPath;
       this.settings.resourcesPath = DEFAULT_SETTINGS.resourcesPath;
@@ -234,7 +244,7 @@ export default class ParaManagerPlugin extends Plugin {
     try {
       // INTERNAL API: app.plugins is not in Obsidian's public type definitions
       // This is necessary to detect the Templater plugin
-      return !!(this.app as any).plugins?.plugins?.["templater-obsidian"];
+      return !!(this.app as ObsidianAppWithPlugins).plugins?.plugins?.["templater-obsidian"];
     } catch {
       return false;
     }
@@ -248,7 +258,7 @@ export default class ParaManagerPlugin extends Plugin {
     try {
       // INTERNAL API: app.internalPlugins is not in Obsidian's public type definitions
       // This is necessary to detect the core Templates plugin
-      return !!(this.app as any).internalPlugins?.plugins?.["templates"];
+      return !!(this.app as ObsidianAppWithPlugins).internalPlugins?.plugins?.["templates"];
     } catch {
       return false;
     }
@@ -286,7 +296,7 @@ export default class ParaManagerPlugin extends Plugin {
       if (this.isTemplaterAvailable()) {
         // INTERNAL API: app.plugins is not in Obsidian's public type definitions
         // We've already verified Templater is available via isTemplaterAvailable()
-        const templater = ((this.app as any).plugins?.plugins?.["templater-obsidian"] as TemplaterPlugin)?.templater;
+        const templater = ((this.app as ObsidianAppWithPlugins).plugins?.plugins?.["templater-obsidian"] as TemplaterPlugin)?.templater;
         if (templater) {
           const result = await templater.parse_template({ template_file: templateFile, target_file: file });
           return result;
@@ -483,11 +493,11 @@ export default class ParaManagerPlugin extends Plugin {
     }
 
     const projectsPath = normalizePath(this.settings.projectsPath);
-    const plugin = this;
+    const sortProjectItems = this.sortProjectItems.bind(this);
 
     this.sortingPatchUninstaller = around(view.constructor.prototype, {
       getSortedFolderItems(original) {
-        return function (this: any, folder: TFolder) {
+        return function (this: FileExplorerView, folder: TFolder) {
           // Only intercept for Projects folder
           if (folder.path !== projectsPath) {
             return original.call(this, folder);
@@ -495,7 +505,7 @@ export default class ParaManagerPlugin extends Plugin {
 
           try {
             const items = original.call(this, folder);
-            return plugin.sortProjectItems(items);
+            return sortProjectItems(items);
           } catch (e) {
             console.error("aPARAtus: Sorting failed, using default", e);
             return original.call(this, folder);
@@ -521,13 +531,13 @@ export default class ParaManagerPlugin extends Plugin {
     if (this.settings.projectSortOrder === "lastModified") {
       sorted.sort((a, b) => {
         // Items are wrappers - actual file is in .file property
-        const fileA = a.file as TAbstractFile;
-        const fileB = b.file as TAbstractFile;
+        const fileA = a.file;
+        const fileB = b.file;
         // Use safe access - stat may be undefined for some files
         const mtimeA =
-          fileA instanceof TFolder ? getFolderLastModifiedTime(fileA) : ((fileA as TFile).stat?.mtime ?? 0);
+          fileA instanceof TFolder ? getFolderLastModifiedTime(fileA) : (fileA instanceof TFile ? fileA.stat?.mtime ?? 0 : 0);
         const mtimeB =
-          fileB instanceof TFolder ? getFolderLastModifiedTime(fileB) : ((fileB as TFile).stat?.mtime ?? 0);
+          fileB instanceof TFolder ? getFolderLastModifiedTime(fileB) : (fileB instanceof TFile ? fileB.stat?.mtime ?? 0 : 0);
         return compareByLastModified({ mtime: mtimeA }, { mtime: mtimeB });
       });
     } else if (this.settings.projectSortOrder === "datePrefix") {
@@ -536,8 +546,8 @@ export default class ParaManagerPlugin extends Plugin {
 
       sorted.sort((a, b) => {
         // Items are wrappers - actual file is in .file property
-        const fileA = a.file as TAbstractFile;
-        const fileB = b.file as TAbstractFile;
+        const fileA = a.file;
+        const fileB = b.file;
 
         // Parse dates using moment with the user's configured format
         // Not using strict mode since folder name has extra text after the date
@@ -615,9 +625,8 @@ export default class ParaManagerPlugin extends Plugin {
             this.app,
             itemName,
             destPath,
-            async () => {
-              await this.performArchive(item, destPath, itemName, archiveSubfolder, sourceFolder);
-              resolve();
+            () => {
+              void this.performArchive(item, destPath, itemName, archiveSubfolder, sourceFolder).then(() => resolve());
             },
             () => resolve() // onCancel - just resolve without archiving
           ).open();
