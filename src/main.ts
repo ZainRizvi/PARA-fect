@@ -33,6 +33,9 @@ declare global {
   }
 }
 
+/** Plugin name for user-facing messages */
+const PLUGIN_NAME = "aPARAtus";
+
 /** Maximum retries for rename operation on collision */
 const MAX_RENAME_RETRIES = 3;
 
@@ -193,7 +196,7 @@ export default class ParaManagerPlugin extends Plugin {
 
     // Check if archive path matches any source folder
     if (sourceFolders.includes(archivePath)) {
-      new Notice("Invalid settings detected, resetting to defaults");
+      new Notice(`${PLUGIN_NAME}: Invalid settings detected, resetting to defaults`);
       this.settings.projectsPath = DEFAULT_SETTINGS.projectsPath;
       this.settings.areasPath = DEFAULT_SETTINGS.areasPath;
       this.settings.resourcesPath = DEFAULT_SETTINGS.resourcesPath;
@@ -205,7 +208,7 @@ export default class ParaManagerPlugin extends Plugin {
     // Check if source folders match each other
     const uniqueFolders = new Set(sourceFolders);
     if (uniqueFolders.size !== sourceFolders.length) {
-      new Notice("Invalid settings detected, resetting to defaults");
+      new Notice(`${PLUGIN_NAME}: Invalid settings detected, resetting to defaults`);
       this.settings.projectsPath = DEFAULT_SETTINGS.projectsPath;
       this.settings.areasPath = DEFAULT_SETTINGS.areasPath;
       this.settings.resourcesPath = DEFAULT_SETTINGS.resourcesPath;
@@ -222,7 +225,7 @@ export default class ParaManagerPlugin extends Plugin {
     ];
     const nestedError = arePathsNested(allPaths);
     if (nestedError) {
-      new Notice("Invalid settings detected, resetting to defaults");
+      new Notice(`${PLUGIN_NAME}: Invalid settings detected, resetting to defaults`);
       this.settings.projectsPath = DEFAULT_SETTINGS.projectsPath;
       this.settings.areasPath = DEFAULT_SETTINGS.areasPath;
       this.settings.resourcesPath = DEFAULT_SETTINGS.resourcesPath;
